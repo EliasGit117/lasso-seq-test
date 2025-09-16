@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Email Leak Detector",
+  "version": "1.0",
+  "description": "Notifies you if an email address is detected in your ChatGPT prompt.",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "permissions": ["storage", "notifications"],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["src/content.js"]
+    }
+  ]
+}
