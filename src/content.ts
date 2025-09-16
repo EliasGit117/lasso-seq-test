@@ -1,76 +1,84 @@
 const EMAIL_REGEX =
   /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
-function scanTextAndSendMessage(text: string) {
+let promptText = "";
+
+
+function scanAndSend(text: string) {
+  void chrome.runtime.sendMessage({ type: "CLEAR_CURRENT" });
+
   const matches = text.match(EMAIL_REGEX);
   if (!matches) return;
 
-  const uniqueEmails = new Set(matches);
-  uniqueEmails.forEach((email) => {
-    console.log('Found email:', email);
-    void chrome.runtime.sendMessage({ type: 'EMAIL_DETECTED', email });
+  const unique = Array.from(new Set(matches));
+
+  void chrome.runtime.sendMessage({
+    type: "EMAILS_DETECTED",
+    emails: unique,
   });
 }
+
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "SHOW_ALERT" && Array.isArray(msg.emails)) {
+    if (msg.emails.length > 0) {
+      alert(`Detected emails:\n${msg.emails.join("\n")}`);
+    }
+  }
+});
+
 
 function attachListeners() {
-  const editor = document.getElementById('prompt-textarea');
-  // const sendButton = document.querySelector('[data-testid="send-button"]');
+  const editor = document.getElementById("prompt-textarea");
+  if (!editor) return;
 
-  if (
-    !editor
-    // || !sendButton
-  ) {
-    console.error('ChatGPT input elements not found.');
-    return;
-  }
-
-  let prompt: string = '';
-
-  const debounced = debounce((text: string) => {
-    console.log('Debounced text:', text);
-  }, 256);
-
-  editor.addEventListener('input', () => {
-    const text = editor.innerText.trim();
-    debounced(text);
+  editor.addEventListener("input", () => {
+    promptText = editor.innerText.trim();
   });
 
-  editor.addEventListener('keydown',
-    (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
-       scanTextAndSendMessage(prompt);
-      }
-    });
+  editor.addEventListener("paste", () => {
+    promptText = (editor as HTMLElement).innerText.trim();
+    console.log("paste ->", promptText);
+  });
 
-  // sendButton.addEventListener('click', () => {
-  //   scanTextAndSendMessage(editor.innerText.trim());
-  // });
+  editor.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      scanAndSend(promptText);
+    }
+  });
 
-  console.log('Email detection listeners attached to ChatGPT editor.');
+  console.log("[EmailDetector] Listeners attached.");
 }
 
-const observer = new MutationObserver((_, obs) => {
-  console.log('Trying to invoke observer.');
-  const editor = document.getElementById('prompt-textarea');
-  if (!editor)
-    return;
-
-  console.log('Editor has been found, trying to invoke observer.');
-  attachListeners();
-  obs.disconnect();
+const obs = new MutationObserver((_, observer) => {
+  const editor = document.getElementById("prompt-textarea");
+  if (editor) {
+    attachListeners();
+    observer.disconnect();
+  }
 });
 
-observer.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+obs.observe(document.body, { childList: true, subtree: true });
 
 
-function debounce<F extends (...args: any[]) => void>(fn: F, wait: number) {
-  let timeout: number | undefined;
+function attachButtonListener() {
+  const submitBtn = document.getElementById("composer-submit-button");
+  if (!submitBtn) return;
 
-  return (...args: Parameters<F>) => {
-    clearTimeout(timeout);
-    timeout = window.setTimeout(() => fn(...args), wait);
-  };
+  submitBtn.addEventListener("click", () => {
+    console.log("[EmailDetector] Submit button clicked");
+    scanAndSend(promptText);
+  });
+
+  console.log("[EmailDetector] Button listener attached.");
 }
+
+const buttonObs = new MutationObserver(() => {
+  const submitBtn = document.getElementById("composer-submit-button");
+  if (submitBtn) {
+    attachButtonListener();
+    buttonObs.disconnect(); // optional if you only need it once
+  }
+});
+
+buttonObs.observe(document.body, { childList: true, subtree: true });
